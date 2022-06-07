@@ -34,7 +34,7 @@ class Compose(object):
 
     def randomize_parameters(self):
         for t in self.transforms:
-            if callable(getattr(t, 'randomize_parameters')):
+            if callable(getattr(t, 'randomize_parameters', 'None')):
                 t.randomize_parameters()
 
 

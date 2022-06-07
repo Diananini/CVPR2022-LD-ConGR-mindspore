@@ -1,6 +1,8 @@
 import mindspore
 from mindspore import nn
+import mindspore.ops.operations as P
 from mindspore import context
+from mindspore.train.serialization import load_param_into_net, load_checkpoint
 
 from models import resnext, mmtnet
 import pdb
@@ -38,128 +40,105 @@ def generate_model(opt):
         model.set_return_both(True)
         model.set_rgb_depth_nets(rgb, depth)
 
-
-
     if not opt.no_cuda:
-        context.set_context(device_target='GPU')
-
-        if opt.pretrain_path and opt.model not in ['magnifynet', 'mmtnet']:
-            print('loading pretrained model {}'.format(opt.pretrain_path))
-            # pretrain = torch.load(opt.pretrain_path, map_location=torch.device('cpu'))
-            pretrain = torch.load(opt.pretrain_path)
-
-            if opt.pretrain_dataset == 'jester':
-                if opt.sample_duration < 32 and opt.model not in ['c3d', 'squeezenet', 'mobilenet','shufflenet', 'mobilenetv2', 'shufflenetv2', 'resnext']:
-                    print('_modify_first_conv_layer')
-                    model = _modify_first_conv_layer(model,3,3)
-                model.load_state_dict(pretrain['state_dict'],strict=False)
-        
-        if opt.model=='mmtnet':
-            if opt.pretrain_dataset == 'hcigesture_allbutnone':
-                print('loading pretrained model {}'.format(opt.pretrain_path))
-                # pretrain = torch.load(opt.pretrain_path, map_location=torch.device('cpu'))
-                pretrain = torch.load(opt.pretrain_path)
-                del pretrain['state_dict']['module.rgb.fc.weight']
-                del pretrain['state_dict']['module.rgb.fc.bias']
-                del pretrain['state_dict']['module.depth.fc.weight']
-                del pretrain['state_dict']['module.depth.fc.bias']
-                model.load_state_dict(pretrain['state_dict'],strict=False)
-            elif opt.pretrain_dataset == opt.dataset:
-                print('loading pretrained model {}'.format(opt.pretrain_path))
-                # pretrain = torch.load(opt.pretrain_path, map_location=torch.device('cpu'))
-                pretrain = torch.load(opt.pretrain_path)
-                model.load_state_dict(pretrain['state_dict'])
-
-        if opt.force_change_firstlayer:
-            model = _modify_first_conv_layer(model,3,3)
-        if opt.model not in ['mmtnet']:
-            model = modify_kernels(opt, model, opt.modality)
-            # model.load_state_dict(pretrain['state_dict'])
-            if opt.pretrain_dataset == opt.dataset:
-                model.load_state_dict(pretrain['state_dict'])
-            elif opt.pretrain_dataset in ['egogesture', 'nvgesture', 'denso', 'hcigesture_allbutnone']:
-            # elif opt.pretrain_dataset:
-                del pretrain['state_dict']['module.fc.weight']
-                del pretrain['state_dict']['module.fc.bias']
-            model.load_state_dict(pretrain['state_dict'],strict=False)
-            
-            model.module.fc = nn.Linear(model.module.fc.in_features, opt.n_finetune_classes)
-            model.module.fc = model.module.fc.cuda()
-
-            # model = modify_kernels(opt, model, opt.modality)
-        # else:
-        #     model = modify_kernels(opt, model, opt.modality)
-
-        parameters = get_fine_tuning_parameters(model, opt.ft_portion)
-        model = model.cuda()
-        return model, parameters
-    else:
         if opt.pretrain_path:
             print('loading pretrained model {}'.format(opt.pretrain_path))
-            pretrain = torch.load(opt.pretrain_path, map_location='cpu')
-            from collections import OrderedDict
-            pretrain_new = OrderedDict()
-            for k, v in pretrain['state_dict'].items():
-                name = k[7:]  # delete `module.`
-                pretrain_new[name] = v
+            pretrain = load_checkpoint(opt.pretrain_path)
+        if opt.pretrain_dataset == 'jester':
+            if 'fc.weight' in pretrain:
+                del pretrain['fc.weight']
+                del pretrain['fc.bias']
+            load_param_into_net(model, pretrain)
 
-            # if opt.model not in ['mmtnet']:
-            #     model = modify_kernels(opt, model, opt.pretrain_modality)
-            # model.load_state_dict(pretrain['state_dict'])
-            # model.load_state_dict(pretrain_new, strict=False)
-            if opt.pretrain_dataset == opt.dataset:
-                model.load_state_dict(pretrain_new)
-            elif opt.pretrain_dataset in ['jester', 'egogesture', 'nvgesture', 'denso']:
-                del pretrain_new['fc.weight']
-                del pretrain_new['fc.bias']
-                model.load_state_dict(pretrain_new,strict=False)
-
-            if opt.model in  ['mobilenet', 'mobilenetv2', 'shufflenet', 'shufflenetv2']:
-                model.classifier = nn.Sequential(
-                                nn.Dropout(0.9),
-                                nn.Linear(model.classifier[1].in_features, opt.n_finetune_classes)
-                                )
-            elif opt.model == 'squeezenet':
-                model.classifier = nn.Sequential(
-                                nn.Dropout(p=0.5),
-                                nn.Conv3d(model.classifier[1].in_channels, opt.n_finetune_classes, kernel_size=1),
-                                nn.ReLU(inplace=True),
-                                nn.AvgPool3d((1,4,4), stride=1))
-            else:
-                model.fc = nn.Linear(model.fc.in_features, opt.n_finetune_classes)
-            if opt.model not in ['mmtnet']:
-                model = modify_kernels(opt, model, opt.modality)
-            parameters = get_fine_tuning_parameters(model, opt.ft_portion)
-            return model, parameters
+        if opt.model=='mmtnet':
+            if opt.pretrain_dataset == 'hcigesture_allbutnone':
+                del pretrain['rgb.fc.weight']
+                del pretrain['rgb.fc.bias']
+                del pretrain['depth.fc.weight']
+                del pretrain['depth.fc.bias']
+                load_param_into_net(model, pretrain)
+            elif opt.pretrain_dataset == opt.dataset:
+                load_param_into_net(model, pretrain)
         else:
-            if opt.model not in ['mmtnet']:
-                model = modify_kernels(opt, model, opt.modality)
+            model = modify_kernels(opt, model, opt.modality)
+            if opt.pretrain_dataset == opt.dataset:
+                load_param_into_net(model, pretrain)
+            elif opt.pretrain_dataset in ['egogesture', 'nvgesture', 'denso', 'hcigesture_allbutnone']:
+                if 'fc.weight' in pretrain:
+                    del pretrain['fc.weight']
+                    del pretrain['fc.bias']
+                load_param_into_net(model, pretrain)
 
-    return model, model.parameters()
+        parameters = get_fine_tuning_parameters(model, opt.ft_portion)
+
+    return model, parameters
+    # else:
+    #     if opt.pretrain_path:
+    #         print('loading pretrained model {}'.format(opt.pretrain_path))
+    #         pretrain = torch.load(opt.pretrain_path, map_location='cpu')
+    #         from collections import OrderedDict
+    #         pretrain_new = OrderedDict()
+    #         for k, v in pretrain['state_dict'].items():
+    #             name = k[7:]  # delete `module.`
+    #             pretrain_new[name] = v
+
+    #         # if opt.model not in ['mmtnet']:
+    #         #     model = modify_kernels(opt, model, opt.pretrain_modality)
+    #         # model.load_state_dict(pretrain['state_dict'])
+    #         # model.load_state_dict(pretrain_new, strict=False)
+    #         if opt.pretrain_dataset == opt.dataset:
+    #             model.load_state_dict(pretrain_new)
+    #         elif opt.pretrain_dataset in ['jester', 'egogesture', 'nvgesture', 'denso']:
+    #             del pretrain_new['fc.weight']
+    #             del pretrain_new['fc.bias']
+    #             model.load_state_dict(pretrain_new,strict=False)
+
+    #         if opt.model in  ['mobilenet', 'mobilenetv2', 'shufflenet', 'shufflenetv2']:
+    #             model.classifier = nn.Sequential(
+    #                             nn.Dropout(0.9),
+    #                             nn.Linear(model.classifier[1].in_features, opt.n_finetune_classes)
+    #                             )
+    #         elif opt.model == 'squeezenet':
+    #             model.classifier = nn.Sequential(
+    #                             nn.Dropout(p=0.5),
+    #                             nn.Conv3d(model.classifier[1].in_channels, opt.n_finetune_classes, kernel_size=1),
+    #                             nn.ReLU(inplace=True),
+    #                             nn.AvgPool3d((1,4,4), stride=1))
+    #         else:
+    #             model.fc = nn.Linear(model.fc.in_features, opt.n_finetune_classes)
+    #         if opt.model not in ['mmtnet']:
+    #             model = modify_kernels(opt, model, opt.modality)
+    #         parameters = get_fine_tuning_parameters(model, opt.ft_portion)
+    #         return model, parameters
+    #     else:
+    #         if opt.model not in ['mmtnet']:
+    #             model = modify_kernels(opt, model, opt.modality)
+
+    # return model, model.parameters()
 
 
 def _construct_depth_model(base_model):
     # modify the first convolution kernels for Depth input
-    modules = list(base_model.modules())
+    cells = list(map(lambda x:x[1], base_model.cells_and_names()))
+    first_conv_idx = list(filter(lambda x: isinstance(cells[x], nn.Conv3d),
+                                               list(range(len(cells)))))[0]
 
-    first_conv_idx = list(filter(lambda x: isinstance(modules[x], nn.Conv3d),
-                                 list(range(len(modules)))))[0]
-    conv_layer = modules[first_conv_idx]
-    container = modules[first_conv_idx - 1]
+    conv_layer = cells[first_conv_idx]
+    container = cells[first_conv_idx - 1]
 
     # modify parameters, assume the first blob contains the convolution kernels
     motion_length = 1
-    params = [x.clone() for x in conv_layer.parameters()]
-    kernel_size = params[0].size()
+    params = [x.clone() for x in conv_layer.get_parameters()]
+    kernel_size = params[0].shape
     new_kernel_size = kernel_size[:1] + (1*motion_length,  ) + kernel_size[2:]
-    new_kernels = params[0].data.mean(dim=1, keepdim=True).expand(new_kernel_size).contiguous()
+    new_kernels = P.ReduceMean(keep_dims=True)(params[0].data, axis=1)
 
-    new_conv = nn.Conv3d(1, conv_layer.out_channels, conv_layer.kernel_size, conv_layer.stride,
-                         conv_layer.padding, bias=True if len(params) == 2 else False)
-    new_conv.weight.data = new_kernels
+    new_conv = nn.Conv3d(1, conv_layer.out_channels, conv_layer.kernel_size, stride=conv_layer.stride,
+                         pad_mode='pad', padding=conv_layer.padding, has_bias=True if len(params) == 2 else False)
+    new_conv.weight.set_data(new_kernels)
     if len(params) == 2:
-        new_conv.bias.data = params[1].data # add bias if neccessary
-    layer_name = list(container.state_dict().keys())[0][:-7] # remove .weight suffix to get the layer name
+        new_conv.bias.set_data(params[1].data)  # add bias if neccessary
+    layer_name = list(container.parameters_dict().keys())[0][:-7] # remove .weight suffix to get the layer name
 
     # replace the first convlution layer
     setattr(container, layer_name, new_conv)
@@ -168,40 +147,40 @@ def _construct_depth_model(base_model):
 
 def _construct_rgbdepth_model(base_model):
     # modify the first convolution kernels for RGB-D input
-    modules = list(base_model.modules())
+    cells = list(map(lambda x:x[1], base_model.cells_and_names()))
+    first_conv_idx = list(filter(lambda x: isinstance(cells[x], nn.Conv3d),
+                                               list(range(len(cells)))))[0]
 
-    first_conv_idx = list(filter(lambda x: isinstance(modules[x], nn.Conv3d),
-                           list(range(len(modules)))))[0]
-    conv_layer = modules[first_conv_idx]
+    conv_layer = cells[first_conv_idx]
     container = modules[first_conv_idx - 1]
     # modify parameters, assume the first blob contains the convolution kernels
     motion_length = 1
-    params = [x.clone() for x in conv_layer.parameters()]
-    kernel_size = params[0].size()
+    params = [x.clone() for x in conv_layer.get_parameters()]
+    kernel_size = params[0].shape
     new_kernel_size = kernel_size[:1] + (1 * motion_length,) + kernel_size[2:]
-    new_kernels = torch.mul(torch.cat((params[0].data, params[0].data.mean(dim=1,keepdim=True).expand(new_kernel_size).contiguous()), 1), 0.6)
+    new_kernels = P.Mul()(P.Concat(1)((params[0].data, P.ReduceMean(keep_dims=True)(params[0].data, axis=1))), 0.6)
     new_kernel_size = kernel_size[:1] + (3 + 1 * motion_length,) + kernel_size[2:]
-    new_conv = nn.Conv3d(4, conv_layer.out_channels, conv_layer.kernel_size, conv_layer.stride,
-                         conv_layer.padding, bias=True if len(params) == 2 else False)
-    new_conv.weight.data = new_kernels
+    new_conv = nn.Conv3d(4, conv_layer.out_channels, conv_layer.kernel_size, stride=conv_layer.stride,
+                         pad_mode='pad', padding=conv_layer.padding, has_bias=True if len(params) == 2 else False)
+    new_conv.weight.set_data(new_kernels)
     if len(params) == 2:
-        new_conv.bias.data = params[1].data  # add bias if neccessary
-    layer_name = list(container.state_dict().keys())[0][:-7]  # remove .weight suffix to get the layer name
+        new_conv.bias.set_data(params[1].data)  # add bias if neccessary
+    layer_name = list(container.parameters_dict().keys())[0][:-7]  # remove .weight suffix to get the layer name
 
     # replace the first convolution layer
     setattr(container, layer_name, new_conv)
     return base_model
 
 def _modify_first_conv_layer(base_model, new_kernel_size1, new_filter_num):
-    modules = list(base_model.modules())
-    first_conv_idx = list(filter(lambda x: isinstance(modules[x], nn.Conv3d),
-                                               list(range(len(modules)))))[0]
-    conv_layer = modules[first_conv_idx]
-    container = modules[first_conv_idx - 1]
+    cells = list(map(lambda x:x[1], base_model.cells_and_names()))
+    first_conv_idx = list(filter(lambda x: isinstance(cells[x], nn.Conv3d),
+                                               list(range(len(cells)))))[0]
+    conv_layer = cells[first_conv_idx]
+    container = cells[first_conv_idx - 1]
  
     new_conv = nn.Conv3d(new_filter_num, conv_layer.out_channels, kernel_size=(new_kernel_size1,7,7),
-                         stride=(1,2,2), padding=(1,3,3), bias=False)
-    layer_name = list(container.state_dict().keys())[0][:-7]
+                         stride=(1,2,2), pad_mode='pad', padding=(1,1,3,3,3,3), has_bias=False)
+    layer_name = list(container.parameters_dict().keys())[0][:-7]
 
     setattr(container, layer_name, new_conv)
     return base_model
@@ -221,10 +200,11 @@ def modify_kernels(opt, model, modality):
         if opt.no_change_firstlayer:
             model = _modify_first_conv_layer(model,3,4)
         print("[INFO]: Done. RGB-D model ready.")
-    modules = list(model.modules())
-    first_conv_idx = list(filter(lambda x: isinstance(modules[x], nn.Conv3d),
-                                               list(range(len(modules)))))[0]
-    conv_layer = modules[first_conv_idx]
+    
+    cells = list(map(lambda x:x[1], model.cells_and_names()))
+    first_conv_idx = list(filter(lambda x: isinstance(cells[x], nn.Conv3d),
+                                               list(range(len(cells)))))[0]
+    conv_layer = cells[first_conv_idx]
     if conv_layer.kernel_size[0]> opt.sample_duration:
        model = _modify_first_conv_layer(model,int(opt.sample_duration/2),1)
     return model

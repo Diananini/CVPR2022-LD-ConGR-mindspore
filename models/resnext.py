@@ -30,7 +30,7 @@ def downsample_basic_block(x, planes, stride):
     # if isinstance(out.data, torch.cuda.FloatTensor):
     #     zero_pads = zero_pads.cuda()
 
-    out = P.Concat(axis=1)((out, zero_pads)) # out.data
+    out = P.Concat(axis=1)((out.data, zero_pads)) # out.data
 
     return out
 

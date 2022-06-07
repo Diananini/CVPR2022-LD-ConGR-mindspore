@@ -3,6 +3,9 @@
 *.rar
 pretrained_models/
 output/
+results/
+out/
+pth2mindspore.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

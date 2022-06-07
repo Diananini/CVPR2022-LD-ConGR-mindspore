@@ -4,14 +4,20 @@ import json
 import numpy as np
 
 import mindspore as ms
+from mindspore.common import set_seed
 import mindspore.nn as nn
 import mindspore.dataset as ds
 import mindspore.dataset.vision.c_transforms as C
+from mindspore.train.serialization import load_param_into_net, load_checkpoint
 from mindspore.train.callback import ModelCheckpoint, CheckpointConfig, LossMonitor, TimeMonitor
+from mindspore import context
+from mindspore.context import ParallelMode
+from mindspore.communication.management import get_rank, get_group_size, init
+
 
 from opts import parse_opts
 from model import generate_model
-from models.mmtnet import TrainStepWrap, NetWithLoss
+from models.mmtnet import TrainStepWrap, NetWithLoss, CustomWithEvalCell
 from evalcallback import EvalCallBack
 
 from mean import get_mean, get_std
@@ -36,7 +42,7 @@ def get_ms_model(opt):
         lr_rates.append(opt.learning_rate * (0.1 ** (i+1)))
     dynamic_lr = nn.piecewise_constant_lr(milestone, lr_rates)
 
-    criterion = nn.SoftmaxCrossEntropyWithLogits()
+    criterion = nn.SoftmaxCrossEntropyWithLogits(sparse=True)
     if opt.model=='resnext':
         optimizer = nn.SGD(
             filter(lambda p: p.requires_grad, network.get_parameters()), #parameters,  # 
@@ -47,7 +53,7 @@ def get_ms_model(opt):
             nesterov=opt.nesterov)
         if opt.resume_path:
             load_param_into_net(optimizer, param_dict)
-        model = ms.Model(network, criterion, optimizer, metrics={"Accuracy": Accuracy()})
+        model = ms.Model(network, criterion, optimizer, metrics={"Accuracy": nn.Accuracy()})
     elif opt.model=='mmtnet':
         optimizer_rgb = nn.SGD(network.get_rgb_params(), learning_rate=dynamic_lr, momentum=opt.momentum, 
           dampening=opt.dampening, weight_decay=opt.weight_decay, nesterov=opt.nesterov)
@@ -57,10 +63,14 @@ def get_ms_model(opt):
             load_param_into_net(optimizer_rgb, param_dict)
             load_param_into_net(optimizer_depth, param_dict)
 
-        loss_net = NetWithLoss(WideDeep_net, criterion)
+        loss_net = NetWithLoss(network, criterion)
         train_net = TrainStepWrap(loss_net, optimizer_rgb, optimizer_depth)
         train_net.set_train()
-        model = ms.Model(train_net)
+        eval_net = CustomWithEvalCell(network)
+        eval_net.set_train(False)
+        model = ms.Model(train_net, eval_network=eval_net, metrics={"Accuracy": nn.Accuracy()})
+
+    return model
 
 if __name__ == '__main__':
     opt = parse_opts()
@@ -89,6 +99,13 @@ if __name__ == '__main__':
     with open(os.path.join(opt.result_path, 'opts.json'), 'w') as opt_file:
         json.dump(vars(opt), opt_file)
 
+    set_seed(opt.manual_seed)
+    context.set_context(mode=context.GRAPH_MODE, device_target='CPU', save_graphs=False)
+    # if run_distribute:
+    #     init("nccl")
+    #     context.set_auto_parallel_context(device_num=get_group_size(),
+    #                                       parallel_mode=ParallelMode.DATA_PARALLEL,
+    #                                       gradients_mean=True)
     model = get_ms_model(opt)
 
     if opt.no_mean_norm and not opt.std_norm:
@@ -135,7 +152,7 @@ if __name__ == '__main__':
         
         training_data = get_training_set(opt, spatial_transform,
                                          temporal_transform, target_transform)
-        train_loader = ds.GeneratorDataset(training_data, ['clip', 'target', 'info'], shuffle=True)
+        train_loader = ds.GeneratorDataset(training_data, ['data', 'label'], num_parallel_workers=4, shuffle=True)
         train_loader = train_loader.batch(opt.batch_size, drop_remainder=True)
 
  
@@ -153,18 +170,18 @@ if __name__ == '__main__':
         validation_data = get_validation_set(
             opt, spatial_transform, temporal_transform, target_transform)
         
-        val_loader = ds.GeneratorDataset(validation_data, ['clip', 'target', 'info'], shuffle=False)
+        val_loader = ds.GeneratorDataset(validation_data, ['data', 'label'], num_parallel_workers=4, shuffle=False)
         val_loader = val_loader.batch(opt.batch_size, drop_remainder=True)
 
 
-    best_info = {'epoch':0, 'acc':0, 'precision':0, 'recall':0, 'confusion_matrix': np.zeros((opt.n_classes, opt.n_classes), dtype=np.int).tolist()}
+    # best_info = {'epoch':0, 'acc':0, 'precision':0, 'recall':0, 'confusion_matrix': np.zeros((opt.n_classes, opt.n_classes), dtype=np.int).tolist()}
 
     print('run')
     
-    time_cb = TimeMonitor(data_size=len(train_loader))
+    time_cb = TimeMonitor(data_size=train_loader.get_dataset_size())
     loss_cb = LossMonitor()
     cb = [time_cb, loss_cb]
-    config_ck = CheckpointConfig(save_checkpoint_steps=len(train_loader),
+    config_ck = CheckpointConfig(save_checkpoint_steps=train_loader.get_dataset_size(),
                                     keep_checkpoint_max=20)
     ckpt_cb = ModelCheckpoint(prefix=opt.store_name, directory=opt.result_path, config=config_ck)
     cb.append(ckpt_cb)
@@ -177,7 +194,8 @@ if __name__ == '__main__':
     eval_cb = EvalCallBack(apply_eval, eval_param_dict, ckpt_directory=opt.result_path, eval_start_epoch=10, interval=1)
     cb.append(eval_cb)
 
-    model.train(opt.n_epochs, train_loader, callbacks=cb, dataset_sink_mode=True, sink_size=-1)
+    model.train(opt.n_epochs, train_loader, callbacks=cb, dataset_sink_mode=False, sink_size=-1)
+    # dataset_sink_mode  True以episode为单位打印数据，False时单位为step
 
 
 

@@ -10,8 +10,6 @@ import numpy as np
 import random
 import sys
 
-from utils import load_value_file, get_location
-import pdb
 
 
 # import sys
@@ -252,7 +250,7 @@ def make_dataset(root_path, annotation_path, subset, n_samples_for_each_video,
     return dataset, idx_to_class
 
 
-class HCIGesture(data.Dataset):
+class HCIGesture: #(data.Dataset)
     """
     Args:
         root (string): Root directory path.
@@ -320,18 +318,21 @@ class HCIGesture(data.Dataset):
             clip = [self.spatial_transform(img) for img in clip]
         
         # print('length of clip', len(clip))
+        
+        # print(type(clip[0]))
 
-        im_dim = clip[0].size()[-2:]
-        clip = torch.cat(clip, 0).view((self.sample_duration, -1) + im_dim).permute(1, 0, 2, 3)
-             
+        im_dim = clip[0].shape[-2:]
+        # clip = P.Transpose()(P.Concat(0)(clip).view((self.sample_duration, -1) + im_dim), (1, 0, 2, 3))
+        clip = np.concatenate(clip, 0).reshape((self.sample_duration, -1) + im_dim).transpose(1, 0, 2, 3)
+
         target = self.data[index]
         if self.target_transform is not None:
             target = self.target_transform(target)
 
         if self.n_samples_for_each_video != 1:
             info = ' '.join([path, str(start_frame_index), str(end_frame_index),str(self.data[index]['label'])])
-            return clip, target, info
-        return clip, target, path
+            return clip, target#, info
+        return clip, target#, path
 
     def __len__(self):
         return len(self.data)

@@ -185,7 +185,7 @@ class NetWithLoss(nn.Cell):
     Provide training loss through network.
     Args:
         network (Cell): The training network
-        config (Class): WideDeep config
+        criterion : loss function
     """
 
     def __init__(self, network, criterion, host_device_mix=False, parameter_server=False,
@@ -202,7 +202,7 @@ class NetWithLoss(nn.Cell):
         rgb_loss = self.loss(rgb_out, label)
         depth_loss = self.loss(depth_out, label)
 
-        return wide_loss, deep_loss
+        return rgb_loss, depth_loss
 
 
 
@@ -307,21 +307,14 @@ class TrainStepWrap(nn.Cell):
         return ops.depend(loss_rgb, self.optimizer_rgb(grad_rgb)), ops.depend(loss_depth, self.optimizer_depth(grad_depth))
 
 
-# class PredictWithSigmoid(nn.Cell):
-#     """
-#     Predict definition
-#     """
-#     def __init__(self, network):
-#         super(PredictWithSigmoid, self).__init__()
-#         self.network = network
-#         self.sigmoid = ops.Sigmoid()
-#         parallel_mode = context.get_auto_parallel_context("parallel_mode")
-#         full_batch = context.get_auto_parallel_context("full_batch")
-#         is_auto_parallel = parallel_mode in (ParallelMode.SEMI_AUTO_PARALLEL, ParallelMode.AUTO_PARALLEL)
-#         if is_auto_parallel and full_batch:
-#             self.sigmoid.shard(((1, 1),))
+class CustomWithEvalCell(nn.Cell):
+    """
+    Predict definition
+    """
+    def __init__(self, network):
+        super(CustomWithEvalCell, self).__init__()
+        self.network = network
 
-#     def construct(self, inputs, labels):
-#         logits, _, = self.network(inputs)
-#         pred_probs = self.sigmoid(logits)
-#         return logits, pred_probs, labels
+    def construct(self, inputs, labels):
+        rgb_out, depth_out = self.network(inputs)
+        return _, (rgb_out+depth_out)/2, labels  # loss, outputs, label
