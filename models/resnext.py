@@ -204,7 +204,6 @@ class ResNeXt(nn.Cell):
         x = self.avgpool(x)
 
         x = P.Reshape()(x, (P.Shape()(x)[0], -1,))
-        # print("size before fc", x.size())
         x = self.fc(x)
 
         return x

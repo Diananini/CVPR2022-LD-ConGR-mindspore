@@ -109,11 +109,11 @@ if __name__ == '__main__':
     model = get_ms_model(opt)
 
     if opt.no_mean_norm and not opt.std_norm:
-        norm_method = C.Normalize(mean=[0, 0, 0], std=[1, 1, 1])
+        norm_method = Normalize(mean=[0, 0, 0], std=[1, 1, 1])
     elif not opt.std_norm:
-        norm_method = C.Normalize(mean=opt.mean, std=[1, 1, 1])
+        norm_method = Normalize(mean=opt.mean, std=[1, 1, 1])
     else:
-        norm_method = C.Normalize(mean=opt.mean, std=opt.std)
+        norm_method = Normalize(mean=opt.mean, std=opt.std)
 
     if not opt.no_train:
         assert opt.train_crop in ['random', 'corner', 'center']
@@ -152,7 +152,7 @@ if __name__ == '__main__':
         
         training_data = get_training_set(opt, spatial_transform,
                                          temporal_transform, target_transform)
-        train_loader = ds.GeneratorDataset(training_data, ['data', 'label'], num_parallel_workers=4, shuffle=True)
+        train_loader = ds.GeneratorDataset(training_data, ['data', 'label'], num_parallel_workers=opt.n_threads, shuffle=True)
         train_loader = train_loader.batch(opt.batch_size, drop_remainder=True)
 
  
@@ -170,7 +170,7 @@ if __name__ == '__main__':
         validation_data = get_validation_set(
             opt, spatial_transform, temporal_transform, target_transform)
         
-        val_loader = ds.GeneratorDataset(validation_data, ['data', 'label'], num_parallel_workers=4, shuffle=False)
+        val_loader = ds.GeneratorDataset(validation_data, ['data', 'label'], num_parallel_workers=opt.n_threads, shuffle=False)
         val_loader = val_loader.batch(opt.batch_size, drop_remainder=True)
 
 

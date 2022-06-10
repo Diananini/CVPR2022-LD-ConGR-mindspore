@@ -1,7 +1,9 @@
 import mindspore
 import mindspore.nn as nn
+import mindspore.ops as ops
 import mindspore.ops.operations as P
 
+from mindspore import context
 from mindspore.context import ParallelMode
 from mindspore.nn.wrap.grad_reducer import DistributedGradReducer
 # from mindspore.communication.management import get_group_size
@@ -25,7 +27,7 @@ class MMTM(nn.Cell):
   def construct(self, rgb, depth):
     squeeze_array = []
     for tensor in [rgb, depth]:
-      tview = P.Reshape()(tensor, (tensor.shape[:2] + (-1,),))
+      tview = P.Reshape()(tensor, tensor.shape[:2] + (-1,))
       squeeze_array.append(P.ReduceMean()(tview, -1)) #dim=
     squeeze = P.Concat(1)(squeeze_array)
 
@@ -39,10 +41,10 @@ class MMTM(nn.Cell):
     sk_out = self.sigmoid(sk_out)
 
     dim_diff = len(rgb.shape) - len(vis_out.shape)
-    vis_out = P.Reshape()(vis_out, (vis_out.shape + (1,) * dim_diff,))
+    vis_out = P.Reshape()(vis_out, vis_out.shape + (1,) * dim_diff)
 
     dim_diff = len(depth.shape) - len(sk_out.shape)
-    sk_out = P.Reshape()(sk_out, (sk_out.shape + (1,) * dim_diff,))
+    sk_out = P.Reshape()(sk_out, sk_out.shape + (1,) * dim_diff)
 
     return rgb * vis_out, depth * sk_out
 
@@ -91,7 +93,7 @@ class MMTNet(nn.Cell):
 
   def construct(self, x):
     rgb_x = x[:, :-1, :, :, :]
-    depth_x = x[:, -1, :, :, :].unsqueeze(1)
+    depth_x = ops.ExpandDims()(x[:, -1, :, :, :], 1)
 
     # rgb INIT BLOCK
     rgb_x = self.rgb.conv1(rgb_x)

@@ -7,6 +7,7 @@ import numpy as np
 # import cv2
 import scipy.ndimage
 from PIL import Image, ImageOps
+import mindspore.dataset.vision.c_transforms as C
 # try:
 #     import accimage
 # except ImportError:
@@ -94,37 +95,47 @@ class Compose(object):
 #         pass
 
 
-# class Normalize(object):
-#     """Normalize an tensor image with mean and standard deviation.
-#     Given mean: (R, G, B) and std: (R, G, B),
-#     will normalize each channel of the torch.*Tensor, i.e.
-#     channel = (channel - mean) / std
-#     Args:
-#         mean (sequence): Sequence of means for R, G, B channels respecitvely.
-#         std (sequence): Sequence of standard deviations for R, G, B channels
-#             respecitvely.
-#     """
+class Normalize(object):
+    """Normalize an tensor image with mean and standard deviation.
+    Given mean: (R, G, B) and std: (R, G, B),
+    will normalize each channel of the torch.*Tensor, i.e.
+    channel = (channel - mean) / std
+    Args:
+        mean (sequence): Sequence of means for R, G, B channels respecitvely.
+        std (sequence): Sequence of standard deviations for R, G, B channels
+            respecitvely.
+    """
 
-#     def __init__(self, mean, std):
-#         self.mean = mean
-#         self.std = std
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
 
-#     def __call__(self, tensor):
-#         """
-#         Args:
-#             tensor (Tensor): Tensor image of size (H, W, C) to be normalized.
-#         Returns:
-#             Tensor: Normalized image.
-#         """
-#         # TODO: make efficient
-#         # for t, m, s in zip(tensor, self.mean, self.std):
-#         #     t.sub_(m).div_(s)
-#         # return tensor
-        
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (H, W, C) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        # TODO: make efficient
+        # for t, m, s in zip(tensor, self.mean, self.std):
+        #     t.sub_(m).div_(s)
+        # return tensor
+        tensor = np.asarray(tensor)
+        H, W = tensor.shape[:2]
+        if tensor.shape[-1] == 3:
+            norm_method = C.Normalize(self.mean, self.std)
+        elif len(tensor.shape)==2 or tensor.shape[-1] == 1:
+            norm_method = C.Normalize([self.mean[0]], [self.std[0]])
+        else:
+            print('tensor shape is invalid', tensor.shape)
+        tensor = norm_method(tensor).reshape((H,W,-1))
+        # print(tensor.shape)
 
+        return tensor
 
-#     def randomize_parameters(self):
-#         pass
+    def randomize_parameters(self):
+        pass
 
 
 class Scale(object):

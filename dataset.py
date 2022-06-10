@@ -21,6 +21,7 @@ def get_training_set(opt, spatial_transform, temporal_transform,
             modality=opt.modality,
             iscrop=opt.iscrop,
             isKeyframes=opt.isKeyframes)
+        
     return training_data
 
 

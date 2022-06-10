@@ -1,59 +1,61 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=0
+# export CUDA_VISIBLE_DEVICES=0
 # nohup \
-python main.py \
-   --root_path /data2/project/gesture/GesRec-mindspore/ \
-   --video_path /data/datasets/HCIGesture \
-   --annotation_path annotation_hciGesture/dataV3/hciall_but_None.json \
-   --result_path results/hci_clf_train_resnext_rgb_112_allbutnone_crop_resize \
-   --dataset hcigesture \
-   --sample_duration 32 \
-   --learning_rate 0.01 \
-   --model resnext \
-   --model_depth 101 \
-   --resnet_shortcut B \
-   --batch_size 32 \
-   --n_classes 10 \
-   --n_finetune_classes 10 \
-   --n_threads 1 \
-   --checkpoint 1 \
-   --modality RGB \
-   --train_crop random \
-   --n_val_samples 1 \
-   --test_subset test \
-   --n_epochs 100 \
-   --sample_size 112 \
-   --save_all \
-   --resize \
-   --resize_size 480 360 \
-   --iscrop \
+# python main.py \
+#    --root_path /data2/project/gesture/GesRec-mindspore/ \
+#    --video_path /data/datasets/HCIGesture \
+#    --annotation_path annotation_hciGesture/dataV3/hciall_but_None.json \
+#    --result_path results/hci_clf_train_resnext_rgb_112_allbutnone_crop_resize \
+#    --dataset hcigesture \
+#    --sample_duration 32 \
+#    --learning_rate 0.01 \
+#    --model resnext \
+#    --model_depth 101 \
+#    --resnet_shortcut B \
+#    --batch_size 32 \
+#    --n_classes 10 \
+#    --n_finetune_classes 10 \
+#    --n_threads 4 \
+#    --checkpoint 1 \
+#    --modality RGB \
+#    --train_crop random \
+#    --n_val_samples 1 \
+#    --test_subset test \
+#    --n_epochs 100 \
+#    --sample_size 112 \
+#    --save_all \
+#    --resize \
+#    --resize_size 480 360 \
+#    --iscrop \
    # > out/hci_clf_train_resnext_rgb_112_allbutnone_crop_resize.out 2>&1 &
 
-# export CUDA_VISIBLE_DEVICES=1,3
-# nohup python main.py \
-#     --root_path /data2/project/gesture/Real-time-GesRec/ \
-#     --video_path /data/datasets/HCIGesture \
-#     --annotation_path annotation_hciGesture/dataV3/hciall_but_None.json \
-#     --result_path results/hci-models/v3/hci_clf_train_mmtnet_rgbd_112_allbutnone_16 \
-#     --dataset hcigesture \
-#     --sample_duration 16 \
-#     --learning_rate 0.01 \
-#     --model mmtnet \
-#     --model_depth 101 \
-#     --resnet_shortcut B \
-#     --batch_size 16 \
-#     --n_classes 10 \
-#     --n_finetune_classes 10 \
-#     --n_threads 1 \
-#     --checkpoint 1 \
-#     --modality RGB-D \
-#     --train_crop random \
-#     --n_val_samples 1 \
-#     --test_subset test \
-#     --n_epochs 100 \
-#     --sample_size 112 \
-#     --save_all \
-#     --no_val \
+# nohup \
+python main.py \
+    --root_path /data2/project/gesture/Real-time-GesRec/ \
+    --video_path /data/datasets/HCIGesture \
+    --annotation_path annotation_hciGesture/dataV3/hciall_but_None.json \
+    --result_path results/hci-models/v3/hci_clf_train_mmtnet_rgbd_112_allbutnone \
+    --dataset hcigesture \
+    --sample_duration 32 \
+    --learning_rate 0.01 \
+    --model mmtnet \
+    --model_depth 101 \
+    --resnet_shortcut B \
+    --batch_size 8 \
+    --n_classes 10 \
+    --n_finetune_classes 10 \
+    --n_threads 4 \
+    --checkpoint 1 \
+    --modality RGB-D \
+    --train_crop random \
+    --n_val_samples 1 \
+    --test_subset test \
+    --n_epochs 100 \
+    --sample_size 112 \
+    --save_all \
+    # > out/hci_clf_train_mmtnet_rgbd_112_allbutnone.out 2>&1 &
+
+    # --no_val \
 #     --pretrain_path report/models/jester_resnext_101_RGB_16_best.pth \
 #     --pretrain_dataset jester > out/hci_clf_train_resnext_rgb_112_allbutnone_datav3_16.out 2>&1 &
 

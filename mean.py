@@ -14,6 +14,7 @@ def get_mean(norm_value=255, dataset='activitynet'):
     elif dataset == 'mousegesture':
         return [114.6996375/norm_value, 116.8932342/norm_value, 117.66550425/norm_value]
 
+
 def get_std(norm_value=255):
     # Kinetics (10 videos for each class)
     return [

@@ -5,7 +5,6 @@ from mindspore import context
 from mindspore.train.serialization import load_param_into_net, load_checkpoint
 
 from models import resnext, mmtnet
-import pdb
 
 def generate_model(opt):
     assert opt.model in ['resnext', 'mmtnet']
@@ -40,36 +39,36 @@ def generate_model(opt):
         model.set_return_both(True)
         model.set_rgb_depth_nets(rgb, depth)
 
-    if not opt.no_cuda:
-        if opt.pretrain_path:
-            print('loading pretrained model {}'.format(opt.pretrain_path))
-            pretrain = load_checkpoint(opt.pretrain_path)
-        if opt.pretrain_dataset == 'jester':
+    
+    if opt.pretrain_path:
+        print('loading pretrained model {}'.format(opt.pretrain_path))
+        pretrain = load_checkpoint(opt.pretrain_path)
+    if opt.pretrain_dataset == 'jester':
+        if 'fc.weight' in pretrain:
+            del pretrain['fc.weight']
+            del pretrain['fc.bias']
+        load_param_into_net(model, pretrain)
+
+    if opt.model=='mmtnet':
+        if opt.pretrain_dataset == 'hcigesture_allbutnone':
+            del pretrain['rgb.fc.weight']
+            del pretrain['rgb.fc.bias']
+            del pretrain['depth.fc.weight']
+            del pretrain['depth.fc.bias']
+            load_param_into_net(model, pretrain)
+        elif opt.pretrain_dataset == opt.dataset:
+            load_param_into_net(model, pretrain)
+    else:
+        model = modify_kernels(opt, model, opt.modality)
+        if opt.pretrain_dataset == opt.dataset:
+            load_param_into_net(model, pretrain)
+        elif opt.pretrain_dataset in ['egogesture', 'nvgesture', 'denso', 'hcigesture_allbutnone']:
             if 'fc.weight' in pretrain:
                 del pretrain['fc.weight']
                 del pretrain['fc.bias']
             load_param_into_net(model, pretrain)
 
-        if opt.model=='mmtnet':
-            if opt.pretrain_dataset == 'hcigesture_allbutnone':
-                del pretrain['rgb.fc.weight']
-                del pretrain['rgb.fc.bias']
-                del pretrain['depth.fc.weight']
-                del pretrain['depth.fc.bias']
-                load_param_into_net(model, pretrain)
-            elif opt.pretrain_dataset == opt.dataset:
-                load_param_into_net(model, pretrain)
-        else:
-            model = modify_kernels(opt, model, opt.modality)
-            if opt.pretrain_dataset == opt.dataset:
-                load_param_into_net(model, pretrain)
-            elif opt.pretrain_dataset in ['egogesture', 'nvgesture', 'denso', 'hcigesture_allbutnone']:
-                if 'fc.weight' in pretrain:
-                    del pretrain['fc.weight']
-                    del pretrain['fc.bias']
-                load_param_into_net(model, pretrain)
-
-        parameters = get_fine_tuning_parameters(model, opt.ft_portion)
+    parameters = get_fine_tuning_parameters(model, opt.ft_portion)
 
     return model, parameters
     # else:

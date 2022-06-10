@@ -322,7 +322,6 @@ class HCIGesture: #(data.Dataset)
         # print(type(clip[0]))
 
         im_dim = clip[0].shape[-2:]
-        # clip = P.Transpose()(P.Concat(0)(clip).view((self.sample_duration, -1) + im_dim), (1, 0, 2, 3))
         clip = np.concatenate(clip, 0).reshape((self.sample_duration, -1) + im_dim).transpose(1, 0, 2, 3)
 
         target = self.data[index]

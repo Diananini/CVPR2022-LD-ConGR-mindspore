@@ -5,9 +5,6 @@ from mindspore.train.callback import Callback
 from mindspore import save_checkpoint
 
 class EvalCallBack(Callback):
-    """
-    回调类，获取训练过程中模型的信息
-    """
     def __init__(self, eval_function, eval_param_dict, interval=1, eval_start_epoch=1, save_best_ckpt=True,
                  ckpt_directory="./", besk_ckpt_name="best.ckpt", metrics_name="acc"):
         super(EvalCallBack, self).__init__()
@@ -25,7 +22,6 @@ class EvalCallBack(Callback):
         self.best_ckpt_path = os.path.join(ckpt_directory, besk_ckpt_name)
         self.metrics_name = metrics_name
 
-    # 删除ckpt文件
     def remove_ckpoint_file(self, file_name):
         os.chmod(file_name, stat.S_IWRITE)
         os.remove(file_name)
